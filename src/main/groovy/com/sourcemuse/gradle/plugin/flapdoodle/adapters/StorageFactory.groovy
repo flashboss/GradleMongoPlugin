@@ -6,9 +6,9 @@ import de.flapdoodle.embed.mongo.config.Storage
 class StorageFactory {
     Storage getStorage(GradleMongoPluginExtension extension) {
         if(extension.storageLocation){
-            new Storage(extension.storageLocation, null, 0)
+            Storage.of(extension.storageLocation, 0)
         } else {
-            new Storage()
+            Storage.builder().build()
         }
     }
 }

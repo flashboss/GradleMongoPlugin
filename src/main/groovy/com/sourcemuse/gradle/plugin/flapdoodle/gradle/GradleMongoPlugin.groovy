@@ -22,10 +22,9 @@ import com.sourcemuse.gradle.plugin.flapdoodle.adapters.ProcessOutputFactory
 import com.sourcemuse.gradle.plugin.flapdoodle.adapters.StorageFactory
 import com.sourcemuse.gradle.plugin.flapdoodle.adapters.VersionFactory
 
-import de.flapdoodle.embed.mongo.MongodProcess
-import de.flapdoodle.embed.mongo.MongodStarter
-import de.flapdoodle.embed.mongo.config.ImmutableMongoCmdOptions
-import de.flapdoodle.embed.mongo.config.ImmutableMongodConfig
+import de.flapdoodle.embed.mongo.transitions.RunningMongodProcess
+import de.flapdoodle.embed.mongo.transitions.ImmutableMongodStarter
+import de.flapdoodle.embed.mongo.transitions.ImmutableMongodProcessArguments
 import de.flapdoodle.embed.mongo.config.Net
 import de.flapdoodle.embed.mongo.packageresolver.Command
 import de.flapdoodle.embed.mongo.runtime.Mongod
@@ -53,7 +52,7 @@ class GradleMongoPlugin implements Plugin<Project> {
 
     private static void configureTaskProperties(Project project) {
         project.extensions.create(PLUGIN_EXTENSION_NAME, GradleMongoPluginExtension)
-        project.getRootProject().extensions.extraProperties.set("mongoPortToProcessMap", new HashMap<Integer, MongodProcess>())
+        project.getRootProject().extensions.extraProperties.set("mongoPortToProcessMap", new HashMap<Integer, RunningMongodProcess>())
     }
 
     private static void addStartManagedMongoDbTask(Project project) {
@@ -116,24 +115,7 @@ class GradleMongoPlugin implements Plugin<Project> {
         def version = new VersionFactory().getVersion(pluginExtension)
         def storage = new StorageFactory().getStorage(pluginExtension)
 
-        def configBuilder = ImmutableMongodConfig.builder()
-                .cmdOptions(createMongoCommandOptions(pluginExtension))
-                .version(version)
-                .replication(storage)
-                .net(new Net(pluginExtension.bindIp, pluginExtension.port, Network.localhostIsIPv6()))
-
-        pluginExtension.args.each { k, v ->
-            if (!v)
-                configBuilder.putArgs("--${k}", null)
-            else
-                configBuilder.putArgs("--${k}", v)
-        }
-
-        pluginExtension.params.each { k, v -> configBuilder.putParams(k, v) }
-
-        def mongodConfig = configBuilder.build()
-
-        def runtimeConfig = new CustomFlapdoodleRuntimeConfig(version,
+        def runtime = new CustomFlapdoodleRuntimeConfig(version,
                 pluginExtension.mongodVerbosity,
                 pluginExtension.downloadUrl,
                 pluginExtension.proxyHost,
@@ -142,13 +124,23 @@ class GradleMongoPlugin implements Plugin<Project> {
                 .defaults(Command.MongoD)
                 .processOutput(processOutput)
                 .isDaemonProcess(manageProcessInstruction == STOP_MONGO_PROCESS_WHEN_BUILD_PROCESS_STOPS)
-                .build()
+                .cmdOptions(createMongoCommandOptions(pluginExtension))
+                .version(version)
+                .replication(storage)
+                .net(Net.of(pluginExtension.bindIp, pluginExtension.port, Network.localhostIsIPv6()))
+                
 
-        def runtime = MongodStarter.getInstance(runtimeConfig)
+        pluginExtension.args.each { k, v ->
+            if (!v)
+                runtime.putArgs("--${k}", null)
+            else
+                runtime.putArgs("--${k}", v)
+        }
 
-        def mongodExecutable = runtime.prepare(mongodConfig)
+        pluginExtension.params.each { k, v -> configBuilder.putParams(k, v) }
+
         println "Starting Mongod ${version.asInDownloadPath()} on port ${pluginExtension.port}..."
-        def mongoProc = mongodExecutable.start()
+        def mongoProc = runtime.build().start()
         println 'Mongod started.'
         project.rootProject.mongoPortToProcessMap.put(pluginExtension.port, mongoProc)
         return true
@@ -183,8 +175,8 @@ class GradleMongoPlugin implements Plugin<Project> {
         }
     }
 
-    private static ImmutableMongoCmdOptions createMongoCommandOptions(GradleMongoPluginExtension pluginExtension) {
-        def mongoCommandOptionsBuilder = ImmutableMongoCmdOptions.builder()
+    private static ImmutableMongodProcessArguments createMongoCommandOptions(GradleMongoPluginExtension pluginExtension) {
+        def mongoCommandOptionsBuilder = ImmutableMongodProcessArguments.builder()
                 .useNoJournal(!pluginExtension.journalingEnabled)
                 .storageEngine(pluginExtension.storageEngine)
                 .auth(pluginExtension.auth)
@@ -206,11 +198,11 @@ class GradleMongoPlugin implements Plugin<Project> {
 
     private static void stopMongoDb(Project project) {
         def port = project."$PLUGIN_EXTENSION_NAME".port as Integer
-        def proc = project.rootProject.mongoPortToProcessMap.remove(port) as MongodProcess
+        def proc = project.rootProject.mongoPortToProcessMap.remove(port) as RunningMongodProcess
         stopMongoDb(port, proc)
     }
 
-    private static void stopMongoDb(int port, MongodProcess proc) {
+    private static void stopMongoDb(int port, RunningMongodProcess proc) {
         println "Shutting-down Mongod on port ${port}."
         def force = (proc == null)
 

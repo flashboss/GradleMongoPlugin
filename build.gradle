@@ -21,22 +21,22 @@ plugins {
 group = 'com.sourcemuse.gradle.plugin'
 version = '2.0.1-SNAPSHOT'
 
-sourceCompatibility = 17
-targetCompatibility = 17
+sourceCompatibility = 19
+targetCompatibility = 19
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    implementation 'de.flapdoodle.embed:de.flapdoodle.embed.mongo:3.4.6'
+    implementation 'de.flapdoodle.embed:de.flapdoodle.embed.mongo:4.3.3'
     implementation 'org.mongodb:mongo-java-driver:3.12.11'
 
     testImplementation 'org.spockframework:spock-core:2.1-groovy-3.0', {
         exclude module: 'groovy-all'
     }
     testImplementation 'org.littleshoot:littleproxy:1.1.2'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.1'
 }
 
 task javadocJar(type: Jar, dependsOn: javadoc) {

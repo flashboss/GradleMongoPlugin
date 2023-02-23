@@ -7,8 +7,7 @@ import static com.sourcemuse.gradle.plugin.LogDestination.NONE
 import com.sourcemuse.gradle.plugin.GradleMongoPluginExtension
 import com.sourcemuse.gradle.plugin.LogDestination
 import de.flapdoodle.embed.mongo.packageresolver.Command
-import de.flapdoodle.embed.mongo.config.MongodProcessOutputConfig
-import de.flapdoodle.embed.process.config.process.ProcessOutput
+import de.flapdoodle.embed.process.io.ProcessOutput
 import de.flapdoodle.embed.process.io.NamedOutputStreamProcessor
 import de.flapdoodle.embed.process.io.NullProcessor
 import de.flapdoodle.embed.process.io.Processors
@@ -25,7 +24,7 @@ class ProcessOutputFactory {
         def logDestination = pluginExtension.logging.toUpperCase() as LogDestination
 
         if (logDestination == CONSOLE) {
-            return MongodProcessOutputConfig.getDefaultInstance(Command.MongoD)
+            return ProcessOutput.builder().build()
         }
 
         if (logDestination == FILE) {
